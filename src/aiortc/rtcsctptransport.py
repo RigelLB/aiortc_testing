@@ -1144,6 +1144,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             return
 
         received_time = time.time()
+        prev_last_sacked_tsn = self._last_sacked_tsn
         self._last_sacked_tsn = chunk.cumulative_tsn
         cwnd_fully_utilized = self._flight_size >= self._cwnd
         done = 0
@@ -1180,6 +1181,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
                 if schunk.tsn in seen and not schunk._acked:
                     done_bytes += schunk._book_size
                     schunk._acked = True
+                    schunk._misses = 0
                     self._flight_size_decrease(schunk)
                     highest_newly_acked = schunk.tsn
 
@@ -1220,12 +1222,12 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         elif uint32_gte(chunk.cumulative_tsn, self._fast_recovery_exit):
             self._fast_recovery_exit = None
 
-        if not self._sent_queue:
+        if uint32_gt(chunk.cumulative_tsn, prev_last_sacked_tsn):
             # there is no outstanding data, stop T3
-            self._t3_cancel()
-        elif done:
-            # the earliest outstanding chunk was acknowledged, restart T3
             self._t3_restart()
+        else:
+            # the earliest outstanding chunk was acknowledged, restart T3
+            self._t3_cancel()
 
         self._update_advanced_peer_ack_point()
         await self._data_channel_flush()
