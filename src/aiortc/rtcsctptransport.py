@@ -1222,12 +1222,15 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         elif uint32_gte(chunk.cumulative_tsn, self._fast_recovery_exit):
             self._fast_recovery_exit = None
 
-        if uint32_gt(chunk.cumulative_tsn, prev_last_sacked_tsn):
-            # there is no outstanding data, stop T3
+        if not self._sent_queue:
+    # All chunks are acknowledged — nothing more to time
+            self._t3_cancel()
+        elif uint32_gt(chunk.cumulative_tsn, prev_last_sacked_tsn):
+            # Cumulative TSN advanced — restart timer for new oldest chunk
             self._t3_restart()
         else:
-            # the earliest outstanding chunk was acknowledged, restart T3
-            self._t3_cancel()
+            # No progress — keep existing timer running
+            pass
 
         self._update_advanced_peer_ack_point()
         await self._data_channel_flush()
@@ -1513,7 +1516,12 @@ class RTCSctpTransport(AsyncIOEventEmitter):
     def _t3_cancel(self) -> None:
         if self._t3_handle is not None:
             self.__log_debug("- T3 cancel")
-            self._t3_handle.cancel()
+            try:
+                self._t3_handle.cancel()
+                self.__log_debug("- T3 cancel - Cancelled T3 handle")
+            except Exception as e:
+                self.__log_debug(f"- T3 cancel - FAILED with exception: {e!r}")
+                raise
             self._t3_handle = None
 
     async def _transmit(self) -> None:
