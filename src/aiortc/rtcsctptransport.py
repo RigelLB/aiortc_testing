@@ -1515,14 +1515,9 @@ class RTCSctpTransport(AsyncIOEventEmitter):
 
     def _t3_cancel(self) -> None:
         if self._t3_handle is not None:
-            self.__log_debug("- T3 cancelll")
-            try:
-                self._t3_handle.cancel()
-                print("- T3 cancel - Cancelled T3 handle")
-            except Exception as e:
-                print(f"- T3 cancel - FAILED with exception: {e!r}")
-                self.__log_debug(f"- T3 cancel - FAILED with exception: {e!r}")
-                raise
+            self.__log_debug(f"Post-T3-cancel: sent_queue={list(self._sent_queue)}")
+            self.__log_debug(f"Closing={self._data_channel_closed(1)}, State={self.__state}")
+            self._t3_handle.cancel()
             self._t3_handle = None
 
     async def _transmit(self) -> None:
