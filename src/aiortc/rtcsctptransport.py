@@ -1522,6 +1522,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             except Exception as e:
                 print(f"- T3 cancel - FAILED with exception: {e!r}")
                 self.__log_debug(f"- T3 cancel - FAILED with exception: {e!r}")
+                raise
             self._t3_handle = None
 
     async def _transmit(self) -> None:
