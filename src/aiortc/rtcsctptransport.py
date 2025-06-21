@@ -1515,7 +1515,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
 
     def _t3_cancel(self) -> None:
         if self._t3_handle is not None:
-            self.__log_debug("- T3 cancel")
+            self.__log_debug("- T3 cancelll")
             try:
                 self._t3_handle.cancel()
                 print("- T3 cancel - Cancelled T3 handle")
