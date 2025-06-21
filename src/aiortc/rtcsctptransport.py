@@ -1144,7 +1144,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             return
 
         received_time = time.time()
-        prev_last_sacked_tsn = self._last_sacked_tsn    # Added
+        prev_last_sacked_tsn = self._last_sacked_tsn
         self._last_sacked_tsn = chunk.cumulative_tsn
         cwnd_fully_utilized = self._flight_size >= self._cwnd
         done = 0
@@ -1518,10 +1518,10 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             self.__log_debug("- T3 cancel")
             try:
                 self._t3_handle.cancel()
-                self.__log_debug("- T3 cancel - Cancelled T3 handle")
+                print("- T3 cancel - Cancelled T3 handle")
             except Exception as e:
+                print(f"- T3 cancel - FAILED with exception: {e!r}")
                 self.__log_debug(f"- T3 cancel - FAILED with exception: {e!r}")
-                raise
             self._t3_handle = None
 
     async def _transmit(self) -> None:
