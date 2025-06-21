@@ -1144,7 +1144,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             return
 
         received_time = time.time()
-        prev_last_sacked_tsn = self._last_sacked_tsn
+        prev_last_sacked_tsn = self._last_sacked_tsn    # Added
         self._last_sacked_tsn = chunk.cumulative_tsn
         cwnd_fully_utilized = self._flight_size >= self._cwnd
         done = 0
