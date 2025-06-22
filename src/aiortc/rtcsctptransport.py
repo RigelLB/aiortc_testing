@@ -1231,10 +1231,14 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         else:
             # No progress — keep existing timer running
             pass
-
+        
+        self.__log_debug(" - Passed T3 Handling")
         self._update_advanced_peer_ack_point()
+        self.__log_debug(" - Passed _update_advanced_peer_ack_point()")
         await self._data_channel_flush()
+        self.__log_debug(" - Passed data_channel_flush()")
         await self._transmit()
+        self.__log_debug(" - Passed transmit()")
 
     async def _receive_reconfig_param(
         self,
