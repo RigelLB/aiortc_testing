@@ -1223,7 +1223,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             self._fast_recovery_exit = None
 
         if not self._sent_queue:
-    # All chunks are acknowledged — nothing more to time
+        # All chunks are acknowledged — nothing more to time
             self._t3_cancel()
         elif uint32_gt(chunk.cumulative_tsn, prev_last_sacked_tsn):
             # Cumulative TSN advanced — restart timer for new oldest chunk
@@ -1515,8 +1515,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
 
     def _t3_cancel(self) -> None:
         if self._t3_handle is not None:
-            self.__log_debug(f"Post-T3-cancel: sent_queue={list(self._sent_queue)}")
-            self.__log_debug(f"Closing={self._data_channel_closed(1)}, State={self.__state}")
+            self.__log_debug("- T3 cancel")
             self._t3_handle.cancel()
             self._t3_handle = None
 
