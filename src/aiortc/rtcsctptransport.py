@@ -1526,7 +1526,9 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         """
         # send FORWARD TSN
         if self._forward_tsn_chunk is not None:
+            self.__log_debug("Sending forward_tsn_chunk")
             await self._send_chunk(self._forward_tsn_chunk)
+            self.__log_debug("Sent forward_tsn_chunk")
             self._forward_tsn_chunk = None
 
             # ensure T3 is running
