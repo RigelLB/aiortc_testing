@@ -1526,9 +1526,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         """
         # send FORWARD TSN
         if self._forward_tsn_chunk is not None:
-            self.__log_debug("Sending forward_tsn_chunk")
             await self._send_chunk(self._forward_tsn_chunk)
-            self.__log_debug("Sent forward_tsn_chunk")
             self._forward_tsn_chunk = None
 
             # ensure T3 is running
@@ -1563,6 +1561,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             retransmit_earliest = False
 
         while self._outbound_queue and self._flight_size < cwnd:
+            self.__log_debug("Sending from the outbound queue")
             chunk = self._outbound_queue.popleft()
             self._sent_queue.append(chunk)
             self._flight_size_increase(chunk)
