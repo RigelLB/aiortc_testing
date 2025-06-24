@@ -1305,6 +1305,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         else:
             stream_seq = 0
 
+        self.__log_debug(f"Length of user data: {str(len(user_data))}")
         fragments = math.ceil(len(user_data) / USERDATA_MAX_LENGTH)
         pos = 0
         for fragment in range(0, fragments):
@@ -1667,7 +1668,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         if self._association_state != self.State.ESTABLISHED:
             return
 
-        self.__log_debug(str(len(self._data_channel_queue)))
+        self.__log_debug(f"Data Channel length: {str(len(self._data_channel_queue))}")
         while self._data_channel_queue and not self._outbound_queue:
             channel, protocol, user_data = self._data_channel_queue.popleft()
 
