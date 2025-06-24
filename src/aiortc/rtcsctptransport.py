@@ -1669,6 +1669,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             return
 
         self.__log_debug(f"Data Channel length: {str(len(self._data_channel_queue))}")
+        self.__log_debug(f"Outbound queue length: {str(len(self._outbound_queue))}")
         while self._data_channel_queue and not self._outbound_queue:
             channel, protocol, user_data = self._data_channel_queue.popleft()
 
