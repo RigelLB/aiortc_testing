@@ -1163,6 +1163,16 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             # update RTO estimate
             if done == 1 and schunk._sent_count == 1:
                 self._update_rto(received_time - schunk._sent_time)
+                
+            # PATCH: make sure no unacked chunks <= cumulative_tsn are left hanging
+            if not chunk.gaps and self._flight_size > 0:
+                for schunk in self._sent_queue:
+                    if uint32_gt(schunk.tsn, self._last_sacked_tsn):
+                        break
+                    if not schunk._acked:
+                        schunk._acked = True
+                        self._flight_size_decrease(schunk)
+
 
         # handle gap blocks
         loss = False
@@ -1223,6 +1233,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             self._fast_recovery_exit = None
 
         if not self._sent_queue:
+            if 
         # All chunks are acknowledged — nothing more to time
             self._t3_cancel()
         elif uint32_gt(chunk.cumulative_tsn, prev_last_sacked_tsn):
@@ -1232,6 +1243,8 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             # No progress — keep existing timer running
             pass
         
+
+
         self._update_advanced_peer_ack_point()
         await self._data_channel_flush()
         await self._transmit()
