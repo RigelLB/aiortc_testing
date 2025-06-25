@@ -1561,7 +1561,8 @@ class RTCSctpTransport(AsyncIOEventEmitter):
                     self._fast_recovery_transmit = False
                 elif self._flight_size >= cwnd:
                     return
-                self._flight_size_increase(chunk)
+                # Patch -> Remove this double flight size increase
+                # self._flight_size_increase(chunk)
 
                 chunk._misses = 0
                 chunk._retransmit = False
@@ -1684,6 +1685,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
 
         self.__log_debug(f"Data Channel length: {str(len(self._data_channel_queue))}")
         self.__log_debug(f"Outbound queue length: {str(len(self._outbound_queue))}")
+        self.__log_debug(f"Sent queue length: {str(len(self._sent_queue))}")
         self.__log_debug(f"Local TSN: {str(self._local_tsn)}")
         if self._last_sacked_tsn == self._local_tsn:
             for chunk in self._outbound_queue:
