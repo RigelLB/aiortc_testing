@@ -1136,6 +1136,15 @@ class RTCSctpTransport(AsyncIOEventEmitter):
                 self._last_received_tsn
             )
 
+
+    def _recalc_flight_size(self) -> None:
+    # recompute flight_size from outstanding chunks only
+        total = 0
+        for chunk in self._sent_queue:
+            total += chunk._book_size
+        self._flight_size = total
+
+
     async def _receive_sack_chunk(self, chunk: SackChunk) -> None:
         """
         Handle a SACK chunk.
@@ -1165,13 +1174,13 @@ class RTCSctpTransport(AsyncIOEventEmitter):
                 self._update_rto(received_time - schunk._sent_time)
 
             # PATCH: make sure no unacked chunks <= cumulative_tsn are left hanging
-            if not chunk.gaps and self._flight_size > 0:
-                for schunk in self._sent_queue:
-                    if uint32_gt(schunk.tsn, self._last_sacked_tsn):
-                        break
-                    if not schunk._acked:
-                        schunk._acked = True
-                        self._flight_size_decrease(schunk)
+            # if not chunk.gaps and self._flight_size > 0:
+            #     for schunk in self._sent_queue:
+            #         if uint32_gt(schunk.tsn, self._last_sacked_tsn):
+            #             break
+            #         if not schunk._acked:
+            #             schunk._acked = True
+            #             self._flight_size_decrease(schunk)
 
 
         # handle gap blocks
@@ -1231,6 +1240,9 @@ class RTCSctpTransport(AsyncIOEventEmitter):
                 self._fast_recovery_transmit = True
         elif uint32_gte(chunk.cumulative_tsn, self._fast_recovery_exit):
             self._fast_recovery_exit = None
+
+        # Patch: Recalculate flight size
+        self._recalc_flight_size()
 
         if not self._sent_queue:
         # All chunks are acknowledged — nothing more to time
@@ -1562,7 +1574,7 @@ class RTCSctpTransport(AsyncIOEventEmitter):
                 elif self._flight_size >= cwnd:
                     return
                 # Patch -> Remove this double flight size increase
-                # self._flight_size_increase(chunk)
+                self._flight_size_increase(chunk)
 
                 chunk._misses = 0
                 chunk._retransmit = False
