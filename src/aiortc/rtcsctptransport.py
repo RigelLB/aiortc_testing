@@ -635,6 +635,9 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         self._sack_duplicates: list[int] = []
         self._sack_misordered: set[int] = set()
         self._sack_needed = False
+        # Patch 
+        self._highest_sacked_tsn = 0
+        # ------
 
         # outbound
         self._cwnd = 3 * USERDATA_MAX_LENGTH
@@ -650,6 +653,9 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         self._outbound_streams_count = MAX_STREAMS
         self._partial_bytes_acked = 0
         self._sent_queue: Deque[DataChunk] = deque()
+        # Patch
+        self._highest_sent_tsn = 0
+        # ------
 
         # reconfiguration
         self._reconfig_queue: list[int] = []
@@ -1136,15 +1142,6 @@ class RTCSctpTransport(AsyncIOEventEmitter):
                 self._last_received_tsn
             )
 
-
-    def _recalc_flight_size(self) -> None:
-    # recompute flight_size from outstanding chunks only
-        total = 0
-        for chunk in self._sent_queue:
-            total += chunk._book_size
-        self._flight_size = total
-
-
     async def _receive_sack_chunk(self, chunk: SackChunk) -> None:
         """
         Handle a SACK chunk.
@@ -1152,8 +1149,11 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         if uint32_gt(self._last_sacked_tsn, chunk.cumulative_tsn):
             return
 
+        # Patch
+        self._highest_sacked_tsn = chunk.cumulative_tsn
+        # ------
+
         received_time = time.time()
-        prev_last_sacked_tsn = self._last_sacked_tsn
         self._last_sacked_tsn = chunk.cumulative_tsn
         cwnd_fully_utilized = self._flight_size >= self._cwnd
         done = 0
@@ -1173,16 +1173,6 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             if done == 1 and schunk._sent_count == 1:
                 self._update_rto(received_time - schunk._sent_time)
 
-            # PATCH: make sure no unacked chunks <= cumulative_tsn are left hanging
-            # if not chunk.gaps and self._flight_size > 0:
-            #     for schunk in self._sent_queue:
-            #         if uint32_gt(schunk.tsn, self._last_sacked_tsn):
-            #             break
-            #         if not schunk._acked:
-            #             schunk._acked = True
-            #             self._flight_size_decrease(schunk)
-
-
         # handle gap blocks
         loss = False
         if chunk.gaps:
@@ -1200,7 +1190,6 @@ class RTCSctpTransport(AsyncIOEventEmitter):
                 if schunk.tsn in seen and not schunk._acked:
                     done_bytes += schunk._book_size
                     schunk._acked = True
-                    schunk._misses = 0
                     self._flight_size_decrease(schunk)
                     highest_newly_acked = schunk.tsn
 
@@ -1241,24 +1230,23 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         elif uint32_gte(chunk.cumulative_tsn, self._fast_recovery_exit):
             self._fast_recovery_exit = None
 
-        # Patch: Recalculate flight size
-        self._recalc_flight_size()
-
         if not self._sent_queue:
-        # All chunks are acknowledged — nothing more to time
+            # there is no outstanding data, stop T3
             self._t3_cancel()
-        elif uint32_gt(chunk.cumulative_tsn, prev_last_sacked_tsn):
-            # Cumulative TSN advanced — restart timer for new oldest chunk
+        elif done:
+            # the earliest outstanding chunk was acknowledged, restart T3
             self._t3_restart()
-        else:
-            # No progress — keep existing timer running
-            pass
-        
 
+
+        # Patch
+        if self._highest_sacked_tsn == self._highest_sent_tsn and len(self._sent_queue) == 0:
+            self._flight_size = 0
+        # ------
 
         self._update_advanced_peer_ack_point()
         await self._data_channel_flush()
         self.__log_debug(f"About to transmit: {self._flight_size < self._cwnd}, flight size: {self._flight_size}, cwnd: {self._cwnd}")
+        self.__log_debug(f"Highest Sacked: {self._highest_sacked_tsn}, highest TSN sent {self._highest_sent_tsn}, len of sent queue: {len(self._sent_queue)}")
         await self._transmit()
 
     async def _receive_reconfig_param(
@@ -1330,7 +1318,6 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         else:
             stream_seq = 0
 
-        self.__log_debug(f"Length of user data: {str(len(user_data))}")
         fragments = math.ceil(len(user_data) / USERDATA_MAX_LENGTH)
         pos = 0
         for fragment in range(0, fragments):
@@ -1573,7 +1560,6 @@ class RTCSctpTransport(AsyncIOEventEmitter):
                     self._fast_recovery_transmit = False
                 elif self._flight_size >= cwnd:
                     return
-                # Patch -> Remove this double flight size increase
                 self._flight_size_increase(chunk)
 
                 chunk._misses = 0
@@ -1587,7 +1573,6 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             retransmit_earliest = False
 
         while self._outbound_queue and self._flight_size < cwnd:
-            self.__log_debug(f"Sending from the outbound queue: {str(self._flight_size < cwnd)}")
             chunk = self._outbound_queue.popleft()
             self._sent_queue.append(chunk)
             self._flight_size_increase(chunk)
@@ -1595,6 +1580,11 @@ class RTCSctpTransport(AsyncIOEventEmitter):
             # update counters
             chunk._sent_count += 1
             chunk._sent_time = time.time()
+
+            # Patch
+            if chunk.tsn > self._highest_sent_tsn:
+                self._highest_sent_tsn = chunk.tsn
+            # ------
 
             await self._send_chunk(chunk)
             if not self._t3_handle:
@@ -1694,14 +1684,12 @@ class RTCSctpTransport(AsyncIOEventEmitter):
         """
         if self._association_state != self.State.ESTABLISHED:
             return
-
+        
+        
         self.__log_debug(f"Data Channel length: {str(len(self._data_channel_queue))}")
         self.__log_debug(f"Outbound queue length: {str(len(self._outbound_queue))}")
         self.__log_debug(f"Sent queue length: {str(len(self._sent_queue))}")
         self.__log_debug(f"Local TSN: {str(self._local_tsn)}")
-        if self._last_sacked_tsn == self._local_tsn:
-            for chunk in self._outbound_queue:
-                self.__log_debug(str(chunk))
 
         while self._data_channel_queue and not self._outbound_queue:
             channel, protocol, user_data = self._data_channel_queue.popleft()
